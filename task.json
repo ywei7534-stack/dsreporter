@@ -1,0 +1,17 @@
+{
+  "query": "Is AI in a hype cycle?",
+  "max_sections": 3,
+  "max_plan_revisions": 3,
+  "publish_formats": {
+    "markdown": true,
+    "pdf": true,
+    "docx": true
+  },
+  "include_human_feedback": false,
+  "follow_guidelines": false,
+  "model": "deepseek-chat",
+  "source": "web",
+  "language": "简体中文",
+  "guidelines": [],
+  "verbose": true
+}

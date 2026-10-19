@@ -1,0 +1,62 @@
+Error processing sub-query AI-driven electricity demand growth forecast uncertainty efficiency data center regional concentration study 2026: Error code: 500 - {'error': {'message': 'failed to encode response: json: unsupported value: NaN', 'type': 'api_error', 'param': None, 'code': None}}
+Traceback (most recent call last):
+  File "D:\CODE\python\project\gpt-researcher-main\gpt-researcher-simplify\gpt_researcher\skills\researcher.py", line 506, in _process_sub_query
+    web_context = await self.researcher.context_manager.get_similar_content_by_query(sub_query, scraped_data)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\CODE\python\project\gpt-researcher-main\gpt-researcher-simplify\gpt_researcher\skills\context_manager.py", line 61, in get_similar_content_by_query
+    return await context_compressor.async_get_context(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        query=query, max_results=10, cost_callback=self.researcher.add_costs
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\CODE\python\project\gpt-researcher-main\gpt-researcher-simplify\gpt_researcher\context\compression.py", line 177, in async_get_context
+    relevant_docs = await asyncio.to_thread(compressed_docs.invoke, query, **self.kwargs)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Weiyvjie\.conda\envs\reserch\Lib\asyncio\threads.py", line 26, in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Weiyvjie\.conda\envs\reserch\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\Weiyvjie\.conda\envs\reserch\Lib\site-packages\langchain_core\retrievers.py", line 222, in invoke
+    result = self._get_relevant_documents(
+        input, run_manager=run_manager, **kwargs_
+    )
+  File "C:\Users\Weiyvjie\.conda\envs\reserch\Lib\site-packages\langchain_classic\retrievers\contextual_compression.py", line 40, in _get_relevant_documents
+    compressed_docs = self.base_compressor.compress_documents(
+        docs,
+        query,
+        callbacks=run_manager.get_child(),
+    )
+  File "C:\Users\Weiyvjie\.conda\envs\reserch\Lib\site-packages\langchain_classic\retrievers\document_compressors\base.py", line 39, in compress_documents
+    documents = _transformer.compress_documents(
+        documents,
+        query,
+        callbacks=callbacks,
+    )
+  File "C:\Users\Weiyvjie\.conda\envs\reserch\Lib\site-packages\langchain_classic\retrievers\document_compressors\embeddings_filter.py", line 85, in compress_documents
+    embedded_query = self.embeddings.embed_query(query)
+  File "C:\Users\Weiyvjie\AppData\Roaming\Python\Python313\site-packages\langchain_openai\embeddings\base.py", line 801, in embed_query
+    return self.embed_documents([text], **kwargs)[0]
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Weiyvjie\AppData\Roaming\Python\Python313\site-packages\langchain_openai\embeddings\base.py", line 740, in embed_documents
+    response = self.client.create(
+        input=texts[i : i + chunk_size_], **client_kwargs
+    )
+  File "C:\Users\Weiyvjie\AppData\Roaming\Python\Python313\site-packages\openai\resources\embeddings.py", line 136, in create
+    return self._post(
+           ~~~~~~~~~~^
+        "/embeddings",
+        ^^^^^^^^^^^^^^
+    ...<9 lines>...
+        cast_to=CreateEmbeddingResponse,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Weiyvjie\AppData\Roaming\Python\Python313\site-packages\openai\_base_client.py", line 1375, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Weiyvjie\AppData\Roaming\Python\Python313\site-packages\openai\_base_client.py", line 1148, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'failed to encode response: json: unsupported value: NaN', 'type': 'api_error', 'param': None, 'code': None}}
+INFO:     [17:06:59] ❌ Error processing 'AI-driven electricity demand growth forecast uncertainty efficiency data center regional concentration study 2026': Error code: 500 - {'error': {'message': 'failed to encode response: json: unsupported value: NaN', 'type': 'api_error', 'param': None, 'code': None}}
