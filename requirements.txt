@@ -1,4 +1,4 @@
-# GPT-Researcher core (LangGraph multi-agent pipeline only)
+# DS Reporter core (LangGraph multi-agent pipeline only)
 
 # LangGraph / LangChain
 langgraph>=0.2.76

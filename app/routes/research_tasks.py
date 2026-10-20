@@ -1,8 +1,10 @@
+import asyncio
+import json
 from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.schemas import (
     ArtifactListResponse,
@@ -76,3 +78,38 @@ async def list_artifacts(task_id: str):
 async def download_artifact(task_id: str, format: str):
     path: Path = await task_manager.get_artifact_path(task_id, format)
     return FileResponse(path, filename=path.name)
+
+
+@router.get("/{task_id}/events")
+async def stream_task_events(task_id: str):
+    async def event_generator():
+        queue = await task_manager.subscribe(task_id)
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15)
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+                    continue
+
+                payload = {
+                    "type": event["type"],
+                    "data": event["data"],
+                }
+                yield (
+                    "data: "
+                    + json.dumps(payload, ensure_ascii=False, default=str)
+                    + "\n\n"
+                )
+        finally:
+            await task_manager.unsubscribe(task_id, queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

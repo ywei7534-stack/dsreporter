@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class ServiceError(Exception):
@@ -52,6 +52,7 @@ class TaskRecord:
     output_dir: str | None = None
     review: dict[str, Any] | None = None
     review_future: asyncio.Future | None = None
+    subscribers: set[asyncio.Queue] = field(default_factory=set)
 
 
 class TaskManager:
@@ -280,10 +281,33 @@ class TaskManager:
             )
         return max(matches, key=lambda path: path.stat().st_mtime)
 
+    async def subscribe(self, task_id: str) -> asyncio.Queue:
+        record = self._get_record(task_id)
+        queue: asyncio.Queue = asyncio.Queue()
+        with self._lock:
+            record.subscribers.add(queue)
+        self._publish(
+            record,
+            "snapshot",
+            {
+                "status": record.status,
+                "current_stage": record.current_stage,
+                "progress": record.progress,
+                "warnings_count": len(record.warnings),
+            },
+        )
+        return queue
+
+    async def unsubscribe(self, task_id: str, queue: asyncio.Queue) -> None:
+        with self._lock:
+            record = self._tasks.get(task_id)
+            if record is not None:
+                record.subscribers.discard(queue)
     async def _run_task(self, record: TaskRecord) -> None:
         with self._lock:
             record.status = "running"
             record.started_at = datetime.now(timezone.utc)
+        self._publish(record, "status", {"status": "running"})
 
         try:
             record.output_dir = self._create_output_dir(record)
@@ -301,6 +325,11 @@ class TaskManager:
                 record.current_stage = "finished"
                 record.finished_at = datetime.now(timezone.utc)
                 record.error = None
+            self._publish(
+                record,
+                "status",
+                {"status": record.status, "warnings_count": len(warnings)},
+            )
         except asyncio.TimeoutError:
             self._fail_task(
                 record,
@@ -339,6 +368,7 @@ class TaskManager:
         publisher_agent = PublisherAgent(record.output_dir or "", headers={})
 
         self._update_stage(record, "initial_research")
+        self._publish(record, "stage", {"stage": "initial_research"})
         initial_result = await research_agent.run_initial_research({"task": task})
         initial_research = initial_result.get("initial_research")
         if not isinstance(initial_research, str) or not initial_research:
@@ -356,6 +386,7 @@ class TaskManager:
         }
 
         self._update_stage(record, "planning")
+        self._publish(record, "stage", {"stage": "planning"})
         plan = await editor_agent.plan_research(plan_state)
         self._validate_plan(plan)
 
@@ -369,12 +400,18 @@ class TaskManager:
 
                 human_feedback = review["feedback"]
                 self._update_stage(record, "planning")
+                self._publish(record, "stage", {"stage": "planning"})
                 plan_state["human_feedback"] = human_feedback
                 plan = await editor_agent.plan_research(plan_state)
                 self._validate_plan(plan)
 
         sections = plan["sections"]
         self._update_stage(record, "section_research")
+        self._publish(
+            record,
+            "stage",
+            {"stage": "section_research", "sections": sections},
+        )
         parallel_result = await editor_agent.run_parallel_research(
             {
                 "task": task,
@@ -393,6 +430,7 @@ class TaskManager:
         )
 
         self._update_stage(record, "writing")
+        self._publish(record, "stage", {"stage": "writing"})
         writer_result = await writer_agent.run(
             {
                 "task": task,
@@ -421,12 +459,14 @@ class TaskManager:
         }
 
         self._update_stage(record, "publishing")
+        self._publish(record, "stage", {"stage": "publishing"})
         publisher_result = await publisher_agent.run(publisher_state)
         report_markdown = (
             publisher_result.get("report", "")
             if isinstance(publisher_result, dict)
             else ""
         )
+        await self._publish_report(record, report_markdown)
 
         section_research, section_warnings = self._build_section_research(
             sections, research_data
@@ -464,6 +504,38 @@ class TaskManager:
             "warnings": [*section_warnings, *format_warnings],
         }
 
+    async def _publish_report(
+        self,
+        record: TaskRecord,
+        report_markdown: str,
+        chunk_size: int = 160,
+        delay_seconds: float = 0.015,
+    ) -> None:
+        if not report_markdown:
+            return
+
+        with self._lock:
+            has_subscribers = bool(record.subscribers)
+        if not has_subscribers:
+            return
+
+        self._publish(
+            record,
+            "report_start",
+            {"format": "markdown", "length": len(report_markdown)},
+        )
+        for offset in range(0, len(report_markdown), chunk_size):
+            self._publish(
+                record,
+                "report_delta",
+                {"text": report_markdown[offset : offset + chunk_size]},
+            )
+            await asyncio.sleep(delay_seconds)
+        self._publish(
+            record,
+            "report_end",
+            {"format": "markdown", "length": len(report_markdown)},
+        )
     async def _wait_for_review(
         self,
         record: TaskRecord,
@@ -486,6 +558,14 @@ class TaskManager:
             record.review_future = future
             record.status = "awaiting_plan_review"
             record.current_stage = "human_review"
+        self._publish(
+            record,
+            "plan_review_required",
+            {
+                "plan": plan,
+                "revision_count": record.progress["plan_revision_count"],
+            },
+        )
 
         try:
             return await future
@@ -618,6 +698,7 @@ class TaskManager:
             }
             if record.review_future and not record.review_future.done():
                 record.review_future.cancel()
+        self._publish(record, "status", {"status": "failed", "error": record.error})
 
     def _classify_exception(self, exc: Exception) -> tuple[str, bool]:
         name = f"{type(exc).__module__}.{type(exc).__name__}".lower()
@@ -658,7 +739,21 @@ class TaskManager:
                 record.progress["completed_sections"] = completed_sections
             if plan_revision_count is not None:
                 record.progress["plan_revision_count"] = plan_revision_count
+        self._publish(record, "progress", dict(record.progress))
 
+    def _publish(
+        self,
+        record: TaskRecord,
+        event_type: str,
+        data: dict[str, Any],
+    ) -> None:
+        with self._lock:
+            subscribers = list(record.subscribers)
+        for queue in subscribers:
+            try:
+                queue.put_nowait({"type": event_type, "data": data})
+            except asyncio.QueueFull:
+                pass
     def _task_url(self, task_id: str) -> str:
         return f"/api/v1/research-tasks/{task_id}"
 

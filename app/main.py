@@ -1,15 +1,23 @@
+import os
 import uuid
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+if not os.environ.get("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.environ.get("DEEPSEEK_API_KEY", "")
 
 from app.routes.research_tasks import router as research_tasks_router
 from app.services.task_service import ServiceError
 
 
 app = FastAPI(
-    title="GPT Researcher API",
+    title="DS Reporter API",
     version="1.0.0",
     description="REST API for asynchronous research report generation.",
 )
